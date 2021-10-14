@@ -7,9 +7,11 @@
 [ ! -f /etc/conf.d/hostname.bak ] && [ -f /etc/conf.d/hostname ] && cp -p /etc/conf.d/hostname /etc/conf.d/hostname.bak 
 [ ! -f /etc/hostname.bak ] && cp -p /etc/hostname /etc/hostname.bak 
 
-if ! equery l '*' | grep sipcalc >> /dev/null;then emerge -aq sipcalc;fi 
-if ! equery l '*' | grep net-tools >> /dev/null;then emerge -aq net-tools;fi 
-if ! equery l '*' | grep gentoolkit >> /dev/null;then emerge -aq app-portage/gentoolkit;fi 
+#if ! equery l '*' | grep sipcalc > /dev/null 2>&1;then emerge -aq sipcalc;fi 
+#if ! equery l '*' | grep net-tools > /dev/null 2>&1;then emerge -aq net-tools;fi 
+#if ! equery l '*' | grep gentoolkit > /dev/null 2>&1;then emerge -aq app-portage/gentoolkit;fi 
+
+emerge -DNaq sipcalc net-tools gentoolkit
 
 clear
 staticip () {
@@ -36,7 +38,7 @@ echo "PLEASE SET YOUR FQDN IN THE FORMAT <machine-name>.<domain>.<dom>";read lin
 echo "DO YOU WISH YOUR FQDN TO BE ${line}? PLEASE ENTER 'y' TO CONFIRM";read confirm
 [ $confirm != "y" ] && exit
 echo $line > /etc/hostname&
-pidof /sbin/init >> /dev/null && [ -f /etc/conf.d/hostname ] && echo "hostname="$line"" > /etc/conf.d/hostname && echo 'rc_before="net.lo"' >> /etc/conf.d/hostname
+pidof /sbin/init > /dev/null 2>&1 && [ -f /etc/conf.d/hostname ] && echo "hostname="$line"" > /etc/conf.d/hostname && echo 'rc_before="net.lo"' >> /etc/conf.d/hostname
 rm /etc/hosts
 
 cat >> /etc/hosts << EOF
@@ -44,8 +46,8 @@ cat >> /etc/hosts << EOF
 $myIP   $line
 EOF
 
-pidof /sbin/init >> /dev/null && hostname -F /etc/hostname >> /dev/null
-pidof /lib/systemd/systemd >> /dev/null && hostnamectl set-hostname $line
+pidof /sbin/init > /dev/null 2>&1 && hostname -F /etc/hostname > /dev/null 2>&1
+pidof /lib/systemd/systemd > /dev/null 2>&1 && hostnamectl set-hostname $line
 
 } ###Closing setfqdn
 
@@ -88,14 +90,14 @@ myKADMINSVCNAME="mit-krb5kadmind"
 dnsinstall () {
 clear
 echo "PART 1: DNS BIND. PLEASE PRESS ANY KEY TO CONTINUE";read line
-pidof /lib/systemd/systemd >> /dev/null && systemctl stop $myDNSSVCNAME
-pidof /sbin/init >> /dev/null && rc-service $myDNSSVCNAME stop
+pidof /lib/systemd/systemd > /dev/null 2>&1 && systemctl stop $myDNSSVCNAME
+pidof /sbin/init > /dev/null 2>&1 && rc-service $myDNSSVCNAME stop
 echo "REMOVING BIND AND PURGING ALL PREVIEWS CONFIGURATION..."
 [ -d $myDNSDIR ] && rm  $myDNSDIR/*lan  
 [ -d $myDNSDIR ] && rm  $myDNSDIR/*db 
 cp /etc/resolv.conf.bak /etc/resolv.conf
 echo "INSTALLING AND CONFIGURING BIND..."
-if ! equery l '*' | grep net-dns/bind >> /dev/null;then emerge -aq $myDNSPACKNAME;fi
+emerge -DNaq $myDNSPACKNAME
 clear
 [ ! -f /etc/bind/named.conf.bak ] && mv /etc/bind/named.conf /etc/bind/named.conf.bak
 [ -f /etc/bind/named.conf ] && rm /etc/bind/named.conf 
@@ -238,7 +240,7 @@ EOF
 
 sed -i '/OPTIONS=/d' /etc/conf.d/named
 echo 'OPTIONS="-4"' >> /etc/conf.d/named
-if pidof /lib/systemd/systemd >> /dev/null
+if pidof /lib/systemd/systemd > /dev/null 2>&1
 then 
 #sed -i 's/ExecStart=\/usr\/sbin\/named -f -u named/ExecStart=\/usr\/sbin\/named -f -4 -u named/g' /etc/systemd/system/named.service
 sed -i 's/ExecStart=\/usr\/sbin\/named -f -u named/ExecStart=\/usr\/sbin\/named -f -4 -u named/g' /lib/systemd/system/named.service
@@ -254,9 +256,10 @@ EOF
 
 
 [ ! -d /var/log/named ] && mkdir /var/log/named
-[ ! -f /var/log/named/named.log ] && touch /var/log/named/named.log && chown named. /var/log/named/named.log
-pidof /lib/systemd/systemd >> /dev/null && systemctl enable $myDNSSVCNAME && systemctl restart $myDNSSVCNAME
-pidof /sbin/init >> /dev/null && rc-update add $myDNSSVCNAME default && rc-service $myDNSSVCNAME restart
+[ ! -f /var/log/named/named.log ] && touch /var/log/named/named.log 
+chown named. /var/log/named/named.log
+pidof /lib/systemd/systemd > /dev/null 2>&1 && systemctl enable $myDNSSVCNAME && systemctl restart $myDNSSVCNAME
+pidof /sbin/init > /dev/null 2>&1 && rc-update add $myDNSSVCNAME default && rc-service $myDNSSVCNAME restart
 sed -i '/nameserver/d' /etc/resolv.conf
 sed -i '/search/d' /etc/resolv.conf
 echo "search  $myDOMAIN" >> /etc/resolv.conf
@@ -271,20 +274,56 @@ openldapinstall () {
 clear
 echo "PART 2: OPENLDAP SERVER.PLEASE PRESS ANY KEY TO CONTINUE";read line
 clear
-pidof /lib/systemd/systemd >> /dev/null && systemctl stop slapd >> /dev/null
-pidof /sbin/init >> /dev/null && rc-service slapd stop >> /dev/null
+pidof /lib/systemd/systemd > /dev/null 2>&1 && systemctl stop slapd > /dev/null 2>&1
+pidof /sbin/init > /dev/null 2>&1 && rc-service slapd stop > /dev/null 2>&1
 echo "REMOVING PREVIOUS LDAP CONFIG..." 
-rm -rf $myLDAPDATADIR/*mdb >> /dev/null
-rm -rf $myLDAPCONFDIR/slap.conf >> /dev/null
-rm -rf $myLDAPCONFDIR/slapd.d/* >> /dev/null
-rm -rf $myLDAPCONFDIR/ssl/* >> /dev/null
-rm -rf $myLDAPCONFDIR/ldifs/* >> /dev/null
+rm -rf $myLDAPDATADIR/*mdb > /dev/null 2>&1
+rm -rf $myLDAPCONFDIR/slap.conf > /dev/null 2>&1
+rm -rf $myLDAPCONFDIR/slapd.d/* > /dev/null 2>&1
+rm -rf $myLDAPCONFDIR/ssl/* > /dev/null 2>&1
+rm -rf $myLDAPCONFDIR/ldifs/* > /dev/null 2>&1
 [ -f /etc/profile.d/ldapuser.sh ] && rm /etc/profile.d/ldapuser.sh
 echo "net-nds/openldap kerberos sha2 sasl -minimal samba" > /etc/portage/package.use/openldap
 [ -f /etc/conf.d/slapd.bak ] && cp  /etc/conf.d/slapd.bak /etc/conf.d/slapd
 
  
 emerge -DNaq net-nds/openldap
+
+
+[ ! -f $myLDAPDATADIR/DB_CONFIG.example ] && cat >> $myLDAPDATADIR/DB_CONFIG.example << EOF
+
+# 
+# Example DB_CONFIG file for use with slapd(8) BDB/HDB databases.
+#
+# See the Oracle Berkeley DB documentation
+#   <http://www.oracle.com/technology/documentation/berkeley-db/db/ref/env/db_config.html>
+# for detail description of DB_CONFIG syntax and semantics.
+#
+# Hints can also be found in the OpenLDAP Software FAQ
+#	<http://www.openldap.org/faq/index.cgi?file=2>
+# in particular:
+#   <http://www.openldap.org/faq/index.cgi?file=1075>
+
+# Note: most DB_CONFIG settings will take effect only upon rebuilding
+# the DB environment.
+
+# one 0.25 GB cache
+set_cachesize 0 268435456 1
+
+# Data Directory
+#set_data_dir db
+
+# Transaction Log settings
+set_lg_regionmax 262144
+set_lg_bsize 2097152
+#set_lg_dir logs
+
+# Note: special DB_CONFIG flags are no longer needed for "quick"
+# slapadd(8) or slapindex(8) access (see their -q option). 
+
+EOF
+
+
 
 ###GET LDAP BASEDN FROM DOMAIN
 echo "RECONFIGURING OPENLDAP SERVER..."
@@ -305,8 +344,8 @@ echo  $dn
 myDN=$(getdn)
 
 
-cp $myLDAPCONFDIR/DB_CONFIG.example $myLDAPCONFDIR/DB_CONFIG >> /dev/null && chown ldap. $myLDAPCONFDIR/DB_CONFIG
-cp $myLDAPDATADIR/DB_CONFIG.example $myLDAPDATADIR/DB_CONFIG >> /dev/null && chown ldap. $myLDAPDATADIR/DB_CONFIG
+cp $myLDAPCONFDIR/DB_CONFIG.example $myLDAPCONFDIR/DB_CONFIG > /dev/null 2>&1 && chown ldap. $myLDAPCONFDIR/DB_CONFIG
+cp $myLDAPDATADIR/DB_CONFIG.example $myLDAPDATADIR/DB_CONFIG > /dev/null 2>&1 && chown ldap. $myLDAPDATADIR/DB_CONFIG
 
 [ ! -f /etc/conf.d/slapd.bak ] && cp -p /etc/conf.d/slapd /etc/conf.d/slapd.bak
 [ -f $myLDAPCONFDIR/slapd.conf ] && rm $myLDAPCONFDIR/slapd.conf 
@@ -321,7 +360,8 @@ moduleload	back_passwd.so
 moduleload	back_monitor.so
 moduleload	back_mdb.so
 moduleload	back_ldap.so
-moduleload	pw-kerberos.so
+#moduleload	pw-kerberos.so
+moduleload      pw-sha2.so
 
 database config
 access to *
@@ -355,11 +395,11 @@ index   dc              eq
 EOF
 chown root:ldap $myLDAPCONFDIR/slapd.conf
 
-pidof /lib/systemd/systemd >> /dev/null && systemctl enable slapd && systemctl restart slapd 
-pidof /sbin/init >> /dev/null && rc-service slapd start 
+pidof /lib/systemd/systemd > /dev/null 2>&1 && systemctl enable slapd && systemctl restart slapd 
+pidof /sbin/init > /dev/null 2>&1 && rc-service slapd start 
 chown -R ldap. $myLDAPDATADIR
 
-rm /etc/conf.d/slapd >> /dev/null
+rm /etc/conf.d/slapd > /dev/null 2>&1
 
 cat >> /etc/conf.d/slapd << "EOF"
 INSTANCE="openldap${SVCNAME#slapd}"
@@ -368,12 +408,12 @@ OPTS="${OPTS_CONF} -h 'ldaps:// ldap:// ldapi://%2fvar%2frun%2fopenldap%2fslapd.
 #rc_need="!net net.lo"
 EOF
 
-[ ! -d $myLDAPCONFDIR/slad.d ] && mkdir $myLDAPCONFDIR/slapd.d 
-slaptest -f $myLDAPCONFDIR/slapd.conf  -F $myLDAPCONFDIR/slapd.d/ >> /dev/null
+[ ! -d $myLDAPCONFDIR/slapd.d ] && mkdir $myLDAPCONFDIR/slapd.d 
+slaptest -f $myLDAPCONFDIR/slapd.conf  -F $myLDAPCONFDIR/slapd.d/ > /dev/null 2>&1
 chown -R ldap. $myLDAPCONFDIR/slapd.d
 chown -R ldap. $myLDAPDATADIR
-pidof /lib/systemd/systemd >> /dev/null && systemctl restart slapd
-pidof /sbin/init >> /dev/null && rc-update add slapd default && rc-service slapd restart
+pidof /lib/systemd/systemd > /dev/null 2>&1 && systemctl restart slapd
+pidof /sbin/init > /dev/null 2>&1 && rc-update add slapd default && rc-service slapd restart
 
 
 echo "CREATING SSL CERTIFICATES FOR USE WITH YOUR OPENLDAP SERVER..."
@@ -521,14 +561,14 @@ cat >> $myDNSDIR/dns-record << "EOF"
 #myDOMAIN=$(hostname -d)
 #mySVCDIR="/var/bind"
 #mySVCNAME="named"
-#if ! $(cat $mySVCDIR/*lan | grep $1 >> /dev/null)  && ! $(cat $mySVCDIR/*lan | grep $2 >> /dev/null)  
+#if ! $(cat $mySVCDIR/*lan | grep $1 > /dev/null 2>&1)  && ! $(cat $mySVCDIR/*lan | grep $2 > /dev/null 2>&1)  
 #then 
 #echo "$1    IN A      $2" >> $mySVCDIR/*lan
 #echo "$myCIDR    IN PTR      $1.$myDOMAIN" >> $mySVCDIR/*db
-#pidof /lib/systemd/systemd >> /dev/null && systemctl reload $mySVCNAME
-#pidof /sbin/init >> /dev/null && service $mySVCNAME reload
+#pidof /lib/systemd/systemd > /dev/null 2>&1 && systemctl reload $mySVCNAME
+#pidof /sbin/init > /dev/null 2>&1 && service $mySVCNAME reload
 #echo "Host $1 with IP $2 added to Bind"
-#elif $(cat $mySVCDIR/*lan | grep $1 >> /dev/null)
+#elif $(cat $mySVCDIR/*lan | grep $1 > /dev/null 2>&1)
 #then 
 #echo "Host already exists"
 #else echo "IP is taken"
@@ -611,7 +651,7 @@ cat >> ldapuser.sh << "EOF"
 #echo -e "$(slapcat -s uid=$givenName.$sn,ou=People,$myDN)\n"
 #echo ""
 #
-#if kadmin.local listprincs | grep  ${givenName}.${sn} >> /dev/null
+#if kadmin.local listprincs | grep  ${givenName}.${sn} > /dev/null 2>&1
 #then echo "KERBEROS PRINCIPAL "$givenName.$sn@$myREALM" ALREADY EXISTS IN THE KERBEROS DATABASE"
 #else kadmin.local ank -pw ${passwd} ${givenName}.${sn}
 #echo "ADDED KERBEROS PRINCIPAL" $givenName.$sn@$myREALM
@@ -695,7 +735,7 @@ cat >> bulkusers.sh << "EOF"
 ##echo -e "$(slapcat -s uid=$givenName.$sn,ou=People,$myDN)\n"
 #echo ""
 #
-#if kadmin.local listprincs | grep  ${givenName}.${sn} >> /dev/null
+#if kadmin.local listprincs | grep  ${givenName}.${sn} > /dev/null 2>&1
 #then echo "KERBEROS PRINCIPAL "$givenName.$sn@$myREALM" ALREADY EXISTS IN THE KERBEROS DATABASE"
 #else kadmin.local ank -pw ${passwd} ${givenName}.${sn}
 #echo "ADDED KERBEROS PRINCIPAL" $givenName.$sn@$myREALM
@@ -746,7 +786,7 @@ ldapmodify -Y EXTERNAL -H ldapi:/// -f mod_ssl.ldif
 
 sleep 3
 
-rm $myLDAPCONFDIR/ldap.conf >> /dev/null
+rm $myLDAPCONFDIR/ldap.conf > /dev/null 2>&1
 cat >> $myLDAPCONFDIR/ldap.conf << EOF
 BASE   $myDN
 URI    ldap://$myFQDN ldaps://$myFQDN ldapi:///
@@ -762,8 +802,8 @@ EOF
 
 chown ldap. $myLDAPCONFDIR/ldap.conf
 
-pidof /lib/systemd/systemd >> /dev/null && systemctl restart slapd
-pidof /sbin/init >> /dev/null && rc-service slapd restart
+pidof /lib/systemd/systemd > /dev/null 2>&1 && systemctl restart slapd
+pidof /sbin/init > /dev/null 2>&1 && rc-service slapd restart
 
 clear
 echo "PART 2: OPENLDAP SERVER COMPLETED."
@@ -784,17 +824,17 @@ echo "PART 3: KERBEROS.PLEASE PRESS ANY KEY TO CONTINUE";read line
 echo "REMOVING PREVIOUS KERBEROS CONFIGURATION..."
 
 echo "app-crypt/mit-krb5  openldap" > /etc/portage/package.use/mit-krb5
-pidof /lib/systemd/systemd >> /dev/null && systemctl stop $myKDCSVCNAME $myKADMINSVCNAME
-pidof /sbin/init >> /dev/null && rc-service $myKDCSVCNAME stop && rc-service $myKADMINSVCNAME stop
+pidof /lib/systemd/systemd > /dev/null 2>&1 && systemctl stop $myKDCSVCNAME $myKADMINSVCNAME
+pidof /sbin/init > /dev/null 2>&1 && rc-service $myKDCSVCNAME stop && rc-service $myKADMINSVCNAME stop
 
-rm -rf $myKRB5DIR/* >> /dev/null
+rm -rf $myKRB5DIR/* > /dev/null 2>&1
 
 emerge -DNaq mit-krb5
 echo "RECONFIGURING KERBEROS..."
 
 [ ! -e /etc/krb5.conf.bak ] && cp /etc/krb5.conf /etc/krb5.conf.bak
-rm /etc/krb5.conf >> /dev/null
-rm /etc/krb5.keytab >> /dev/null
+rm /etc/krb5.conf > /dev/null 2>&1
+rm /etc/krb5.keytab > /dev/null 2>&1
 
 
 cat >> /etc/krb5.conf << EOF
@@ -848,10 +888,10 @@ EOF
 echo "*/admin@${myREALM} *" > $myKRB5DIR/kadm5.acl
 echo "YOU WILL BE PROMPTED FOR KERBEROS DB ROOT PASSWD.PLEASE PRESS ANY KEY TO CONTINUE";read line
 kdb5_util create -s -r ${myREALM}
-pidof /lib/systemd/systemd >> /dev/null && systemctl enable $myKDCSVCNAME $myKADMINSVCNAME  && systemctl restart $myKDCSVCNAME $myKADMINSVCNAME
-pidof /sbin/init >> /dev/null && rc-update add $myKDCSVCNAME default && rc-update add  $myKADMINSVCNAME default && rc-service $myKDCSVCNAME restart && rc-service $myKADMINSVCNAME restart
+pidof /lib/systemd/systemd > /dev/null 2>&1 && systemctl enable $myKDCSVCNAME $myKADMINSVCNAME  && systemctl restart $myKDCSVCNAME $myKADMINSVCNAME
+pidof /sbin/init > /dev/null 2>&1 && rc-update add $myKDCSVCNAME default && rc-update add  $myKADMINSVCNAME default && rc-service $myKDCSVCNAME restart && rc-service $myKADMINSVCNAME restart
 kadmin.local ank -randkey host/${myFQDN} >> /dev/nul
-kadmin.local ktadd host/${myFQDN} >> /dev/null
+kadmin.local ktadd host/${myFQDN} > /dev/null 2>&1
 echo "YOU WILL BE PROMPTED FOR KERBEROS ADMIN USER root/admin PASSWORD.PLEASE PRESS ANY KEY TO CONTINUE";read line
 kadmin.local ank root/admin 
 kadmin.local ank root 
@@ -872,8 +912,8 @@ nfsinstall () {
 clear
 echo "PART 4: KERBERISED NFS-SERVER.PLEASE PRESS ANY KEY TO CONTINUE";read line
 echo "REMOVING PREVIOUS NFS CONFIGURATION..."
-pidof /lib/systemd/systemd >> /dev/null && systemctl stop nfs-server rpcbind 
-pidof /sbin/init >> /dev/null && rc-service nfs stop && rc-service rpcbind stop
+pidof /lib/systemd/systemd > /dev/null 2>&1 && systemctl stop nfs-server rpcbind 
+pidof /sbin/init > /dev/null 2>&1 && rc-service nfs stop && rc-service rpcbind stop
 rm -rf /srv/nfs
 echo "net-fs/nfs-utils kerberos ldap nfsv4" > /etc/portage/package.use/nfs-utils
 echo "net-libs/libtirpc kerberos" > /etc/portage/package.use/libtirpc
@@ -893,7 +933,7 @@ nfsdir
 ##########################
 
 sed -i '/srv/d' /etc/exports
-mkdir -p /srv/nfs/$nfsDIR >> /dev/null && chmod -R 777 /srv/nfs >> /dev/null
+mkdir -p /srv/nfs/$nfsDIR > /dev/null 2>&1 && chmod -R 777 /srv/nfs > /dev/null 2>&1
 [ ! -f /etc/idmapd.conf.bak ] && mv  /etc/idmapd.conf /etc/idmapd.conf.bak
 rm /etc/idmapd.conf
 
@@ -917,8 +957,8 @@ echo "/srv/nfs/$nfsDIR *(rw,sec=krb5p,nohide,insecure)" >> /etc/exports
 [ ! -f /etc/conf.d/nfs.bak ] && cp -p /etc/conf.d/nfs /etc/conf.d/nfs.bak
 sed -i '/NFS_NEEDED_SERVICES=/d' /etc/conf.d/nfs
 echo "NFS_NEEDED_SERVICES="rpc.idmapd rpc.gssd rpc.svcgssd"" >> /etc/conf.d/nfs
-pidof /lib/systemd/systemd >> /dev/null && systemctl enable --now rpcbind nfs-server && systemctl restart rpcbind nfs-server
-if pidof /sbin/init >> /dev/null
+pidof /lib/systemd/systemd > /dev/null 2>&1 && systemctl enable --now rpcbind nfs-server && systemctl restart rpcbind nfs-server
+if pidof /sbin/init > /dev/null 2>&1
 then
 rc-update add rpcbind default
 rc-update add nfs default
@@ -930,8 +970,8 @@ rpc.gssd
 rc-service nfsclient restart
 fi
 exportfs -avr
-kadmin.local ank -randkey nfs/${myFQDN} >> /dev/null
-kadmin.local ktadd nfs/${myFQDN} >> /dev/null
+kadmin.local ank -randkey nfs/${myFQDN} > /dev/null 2>&1
+kadmin.local ktadd nfs/${myFQDN} > /dev/null 2>&1
 clear
 echo "PART 4: KERBERISED NFS-SERVER COMPLETED"
 echo "AFTER REBOOTING YOUR MACHINE YOU CAN MOUNT /srv/nfs/$nfsDIR BY ISSUING:"
@@ -951,7 +991,7 @@ clear
 echo "PART 5: SAMBA SERVER CONFIGURATION.............."
 emerge -DNaq samba
 echo "REMOVING PREVIOUS SAMBA CONFIGURATION..."
-if ! cat /etc/group | grep smbprivate >> /dev/null;then groupadd -g 3000 smbprivate;fi
+if ! cat /etc/group | grep smbprivate > /dev/null 2>&1;then groupadd -g 3000 smbprivate;fi
 
 sharedir () {
 echo 'SAMBA SERVER WILL SHARE A READ-ONLY OPEN-TO ALL DIRECTORY UNDER "/srv/samba".PLEASE CHOOSE THE DESIRED NAME FOR THIS DIRECTORY';read dir
@@ -1160,14 +1200,14 @@ directory mode = 0777
 
 
 EOF
-if pidof /lib/systemd/systemd >> /dev/null
+if pidof /lib/systemd/systemd > /dev/null 2>&1
 then
 systemctl enable --now smbd nmbd
 systemctl restart smbd nmbd
 sleep 3
 fi
 
-if pidof /sbin/init >> /dev/null
+if pidof /sbin/init > /dev/null 2>&1
 then
 rc-update add samba default
 rc-service samba restart
@@ -1189,9 +1229,9 @@ echo "PRESS ANY KEY TO CONTINUE";read line
 ntpinstall () {
 clear
 echo "INSTALLING NTP TIME SERVER..."
-if ! equery l '*' | grep net-misc/ntp >> /dev/null;then emerge -DNaq net-misc/ntp;fi
-if pidof /lib/systemd/systemd >> /dev/null;then systemctl enable --now ntpd && systemctl restart ntpd;fi
-if pidof /sbin/init >> /dev/null
+if ! equery l '*' | grep net-misc/ntp > /dev/null 2>&1;then emerge -DNaq net-misc/ntp;fi
+if pidof /lib/systemd/systemd > /dev/null 2>&1;then systemctl enable --now ntpd && systemctl restart ntpd;fi
+if pidof /sbin/init > /dev/null 2>&1
 then
 rc-update add ntpd default
 rc-service ntpd restart
@@ -1204,6 +1244,153 @@ echo "NTP TIME SERVER INSTALLATION COMPLETE.PLEASE PRESS ANY KEY TO CONTINUE";re
 }  ############Closing ntpinstall()
 #####################################
 
+apache2install () {
+
+clear
+echo "CONFIGURING APACHE......"
+echo "REMOVING PREVIOUS APACHE CONFIG AND RECONFIGURING APACHE.PRESS y TO CONTINUE ";read confirm
+
+if [ ! $confirm == "y" ]
+then echo "ABORTING....."
+exit
+fi
+
+if pidof /lib/systemd/systemd > /dev/null 2>&1;then systemctl stop apache2 > /dev/null 2>&1;fi
+if pidof /sbin/init > /dev/null 2>&1
+then
+rc-service apache2 stop > /dev/null 2>&1
+fi
+emerge -DNaq apache mod_auth_kerb
+
+clear 
+
+[ ! -f /etc/conf.d/apache2.bak ] && mv /etc/conf.d/apache2 /etc/conf.d/apache2.bak > /dev/null 2>&1 
+[ -f /etc/apache2/krb5dir.info ] && krb5dir=$(cat /etc/apache2/krb5dir.info) && rm -rf /var/www/localhost/htdocs/$krb5dir
+[ ! -f /etc/apache2/modules.d/11_mod_auth_kerb.conf.bak ] && mv /etc/apache2/modules.d/11_mod_auth_kerb.conf /etc/apache2/modules.d/11_mod_auth_kerb.conf.bak
+[ ! -f /etc/apache2/vhosts.d/00_default_ssl_vhost.conf.bak ] && mv /etc/apache2/vhosts.d/00_default_ssl_vhost.conf /etc/apache2/vhosts.d/00_default_ssl_vhost.conf.bak
+rm /etc/conf.d/apache2 > /dev/null 2>&1
+rm /etc/apache2/vhosts.d/00_default_ssl_vhost.conf > /dev/null 2>&1
+rm /etc/apache2/modules.d/11_mod_auth_kerb.conf > /dev/null 2>&1
+
+echo "APACHE WILL SERVE A KERBEROS PROTECTED DIRECTORY FROM THE DEFAULT LOCATION OF /var/www/localhost/htdocs"
+echo "PLEASE CHOOSE THE NAME OF THIS DIRECTORY ";read krb5dir
+echo "APACHE WILL SHARE THE /var/www/localhost/htdocs/$krb5dir DIRECTORY.PLEASE PRESS y TO CONFIRM ";read confirm
+
+
+if [ $confirm != "y" ] 
+then echo "ABORTING....."
+exit
+fi
+
+mkdir /var/www/localhost/htdocs/$krb5dir
+
+cat >> /var/www/localhost/htdocs/$krb5dir/index.html << EOF
+Welcome to Kerberos-shared /var/www/localhost/htdocs/$krb5dir Directory
+
+This page uses the Apache module  mod_auth_kerb to authenticate and allow access to only existing kerberos users.
+You may wish to symlink files that you wish to share,create directories and html files and even have a whole "inner" private and secure site served from here.It uses the SSL certificates we created during ldap installation and as a result you will get an SSL warning from firefox when trying to access it.For testing pupropses its ok but in production you may wish to use some proper SSL certs i.e. Letsencrypt etc.
+EOF
+
+cat >> /etc/apache2/vhosts.d/00_default_ssl_vhost.conf << EOF
+<IfDefine SSL>
+<IfDefine SSL_DEFAULT_VHOST>
+<IfModule ssl_module>
+
+Listen 443
+
+<VirtualHost _default_:443>
+	ServerName $myDOMAIN 
+	Include /etc/apache2/vhosts.d/default_vhost.include
+	ErrorLog /var/log/apache2/ssl_error_log
+
+	<IfModule log_config_module>
+		TransferLog /var/log/apache2/ssl_access_log
+	</IfModule>
+
+	SSLEngine on
+
+	SSLProtocol ALL -SSLv2 -SSLv3
+
+	SSLCipherSuite ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-AES256-GCM-SHA384:DHE-RSA-AES128-GCM-SHA256:DHE-DSS-AES128-GCM-SHA256:kEDH+AESGCM:ECDHE-RSA-AES128-SHA256:ECDHE-ECDSA-AES128-SHA256:ECDHE-RSA-AES128-SHA:ECDHE-ECDSA-AES128-SHA:ECDHE-RSA-AES256-SHA384:ECDHE-ECDSA-AES256-SHA384:ECDHE-RSA-AES256-SHA:ECDHE-ECDSA-AES256-SHA:DHE-RSA-AES128-SHA256:DHE-RSA-AES128-SHA:DHE-DSS-AES128-SHA256:DHE-RSA-AES256-SHA256:DHE-DSS-AES256-SHA:DHE-RSA-AES256-SHA:AES128-GCM-SHA256:AES256-GCM-SHA384:AES128:AES256:HIGH:!RC4:!aNULL:!eNULL:!EXPORT:!DES:!3DES:!MD5:!PSK
+
+	SSLHonorCipherOrder On
+
+	SSLCertificateFile /etc/ssl/private/server.crt
+
+	SSLCertificateKeyFile /etc/ssl/private/server.key
+
+
+	SSLCACertificateFile /etc/ssl/certs/ca-certificates.crt
+
+	<FilesMatch "\.(cgi|shtml|phtml|php)$">
+		SSLOptions +StdEnvVars
+	</FilesMatch>
+
+	<Directory "/var/www/localhost/cgi-bin">
+		SSLOptions +StdEnvVars
+	</Directory>
+
+
+
+
+	<IfModule log_config_module>
+		CustomLog /var/log/apache2/ssl_request_log \
+			"%t %h %{SSL_PROTOCOL}x %{SSL_CIPHER}x \"%r\" %b"
+	</IfModule>
+
+
+<Directory /var/www/localhost/htdocs/$krb5dir>
+    SSLRequireSSL
+    AuthType Kerberos
+    AuthName "Kerberos Authentication"
+    KrbAuthRealms $myREALM
+    Krb5Keytab /etc/krb5.keytab
+    KrbMethodNegotiate On
+    KrbMethodK5Passwd On
+    KrbServiceName HTTP/$myFQDN
+    KrbSaveCredentials Off
+    KrbVerifyKDC Off
+    Require valid-user
+</Directory>
+
+</VirtualHost>
+</IfModule>
+</IfDefine>
+</IfDefine>
+EOF
+
+cat >> /etc/conf.d/apache2 << EOF
+APACHE2_OPTS="-D INFO -D SSL -D SSL_DEFAULT_VHOST -D LANGUAGE -D AUTH_KERB"
+EOF
+
+cat >> /etc/apache2/modules.d/11_mod_auth_kerb.conf << EOF
+<IfDefine AUTH_KERB>
+LoadModule auth_kerb_module modules/mod_auth_kerb.so
+</IfDefine>
+EOF
+
+if kadmin.local listprincs | grep HTTP > /dev/null 2>&1
+then princ=$(kadmin.local listprincs | grep HTTP)
+kadmin.local delprinc $princ > /dev/null 2>&1
+fi
+
+kadmin.local addprinc -randkey HTTP/$myFQDN
+kadmin.local ktadd HTTP/$myFQDN > /dev/null 2>&1
+
+echo "$krb5dir" > /etc/apache2/krb5dir.info
+
+if pidof /lib/systemd/systemd > /dev/null 2>&1;then systemctl enable apache2 > /dev/null 2>&1 && systemctl start apache2;fi
+if pidof /sbin/init > /dev/null 2>&1
+then
+rc-service apache2 restart > /dev/null 2>&1
+fi
+
+clear
+
+echo "APACHE CONFIGURATION COMPLETE.PLEASE OPEN A WEB BROWSER AND NAVIGATE TO https://$myDOMAIN/$krb5dir"
+echo "AUTHENTICATING WITH AN EXISTING KERBEROS USER AND PASSWORD.OR YOU MAY WISH TO OPEN A NEW TERMINAL OR SSH SESSION AND ADD A USER NOW BY RUNNING  sudo kadmin.local ank -pw <password> <username> FURTHERMORE IF YOU ARE NOT ACCESSING THE WEB PAGE LOCALLY THEN PLEASE MAKE SURE THAT IT IS RESOLVABLE EITHER THROUGH A DNS ENTRY OR VIA AN ENTRY IN /etc/hosts.......PLEASE PRESS ANY KEY TO CONTINUE ";read key 
+}
+
 
 dnsinstall 
 openldapinstall
@@ -1211,3 +1398,5 @@ krb5install
 nfsinstall
 sambainstall
 ntpinstall
+apache2install
+
