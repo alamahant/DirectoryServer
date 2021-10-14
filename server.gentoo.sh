@@ -1205,9 +1205,9 @@ echo "NTP TIME SERVER INSTALLATION COMPLETE.PLEASE PRESS ANY KEY TO CONTINUE";re
 #####################################
 
 
-#dnsinstall 
+dnsinstall 
 openldapinstall
-#krb5install
-#nfsinstall
-#sambainstall
-#ntpinstall
+krb5install
+nfsinstall
+sambainstall
+ntpinstall
