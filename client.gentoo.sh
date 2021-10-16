@@ -35,7 +35,7 @@ echo "OTHERWISE PLEASE PRESS ANY OTHER KEY TO EXIT THE SCRIPT,CONFIGURE STATIC I
 staticip
 
 myIP=$(ip route get 8.8.8.8| grep src| sed 's/.*src \(.*\)$/\1/g' | awk '{ print $1 }')
-if [ ! -f /root/.ssh/id_rsa.pub]
+if [ ! -f /root/.ssh/id_rsa.pub ]
 then
 echo "GENERATING SSH KEYS...."
 ssh-keygen -t rsa
@@ -164,8 +164,8 @@ then echo "sudoers:  files sss" >> /etc/nsswitch.conf
 else sed -i '/sudoers/ s/$/ sss/g' /etc/nsswitch.conf 
 fi
 
-[ -f /etc/pam.d/system-auth.bak ] && mv /etc/pam.d/system-auth /etc/pam.d/system-auth.bak
-
+[ ! -f /etc/pam.d/system-auth.bak ] && mv /etc/pam.d/system-auth /etc/pam.d/system-auth.bak
+rm /etc/pam.d/system-auth
 cat >> /etc/pam.d/system-auth << EOF
 #%PAM-1.0
 # This file is auto-generated.
