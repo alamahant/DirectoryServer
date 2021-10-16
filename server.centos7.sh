@@ -2,7 +2,8 @@
 
 
 ###WRITTEN by alamahant on 24/12/2019
-if ! ping -c 1 google.com >> /dev/null;then echo "No Internet Connectivity,EXITING!!!";exit;fi
+
+if ! ping -c 1 google.com > /dev/null 2>&1;then echo "No Internet Connectivity,EXITING!!!";exit;fi
 yum update && yum install net-tools sipcalc
 
 clear
@@ -47,7 +48,7 @@ cat >> /etc/hosts << EOF
 $myIP   $line
 EOF
 
-hostname -F /etc/hostname >> /dev/null
+hostname -F /etc/hostname > /dev/null 2>&1
 hostnamectl set-hostname $line
 
 } ###Closing setfqdn
@@ -113,8 +114,8 @@ systemctl stop named
 
 yum remove  bind 
 
-rm $myDNSDIR/*lan >> /dev/null
-rm $myDNSDIR/*db >> /dev/null
+rm $myDNSDIR/*lan > /dev/null 2>&1
+rm $myDNSDIR/*db > /dev/null 2>&1
 
 yum install bind
 
@@ -276,11 +277,11 @@ systemctl stop slapd
 
 yum remove openldap-servers 
 
-rm -rf $myLDAPDATADIR >> /dev/null
-rm -rf $myLDAPCONFDIR/slapd.d >> /dev/null
-rm -rf $myLDAPCONFDIR/certs/server* >> /dev/null
-rm -rf $myLDAPCONFDIR/certs/ca-bundle.crt >> /dev/null
-rm -rf $myLDAPCONFDIR/ldifs >> /dev/null
+rm -rf $myLDAPDATADIR > /dev/null 2>&1
+rm -rf $myLDAPCONFDIR/slapd.d > /dev/null 2>&1
+rm -rf $myLDAPCONFDIR/certs/server* > /dev/null 2>&1
+rm -rf $myLDAPCONFDIR/certs/ca-bundle.crt > /dev/null 2>&1
+rm -rf $myLDAPCONFDIR/ldifs > /dev/null 2>&1
 
 [ -f /etc/profile.d/ldapuser.sh ] && rm /etc/profile.d/ldapuser.sh
 
@@ -348,22 +349,22 @@ replace: olcAccess
 olcAccess: {0}to * by dn.base="gidNumber=0+uidNumber=0,cn=peercred,cn=external,cn=auth"
   read by dn.base="cn=Manager,${myDN}" read by * none
 
-dn: olcDatabase={2}hdb,cn=config
+dn: olcDatabase={2}mdb,cn=config
 changetype: modify
 replace: olcSuffix
 olcSuffix: $myDN
 
-dn: olcDatabase={2}hdb,cn=config
+dn: olcDatabase={2}mdb,cn=config
 changetype: modify
 replace: olcRootDN
 olcRootDN: cn=Manager,$myDN
 
-dn: olcDatabase={2}hdb,cn=config
+dn: olcDatabase={2}mdb,cn=config
 changetype: modify
 replace: olcRootPW
 olcRootPW: $myPASS
 
-dn: olcDatabase={2}hdb,cn=config
+dn: olcDatabase={2}mdb,cn=config
 changetype: modify
 add: olcAccess
 olcAccess: {0}to attrs=userPassword,shadowLastChange by
@@ -450,13 +451,13 @@ cat >> $myDNSDIR/dns-record << "EOF"
 #myDOMAIN=$(hostname -d)
 #mySVCDIR="/var/named"
 #mySVCNAME="named"
-#if ! $(cat $mySVCDIR/*lan | grep $1 >> /dev/null)  && ! $(cat $mySVCDIR/*lan | grep $2 >> /dev/null)  
+#if ! $(cat $mySVCDIR/*lan | grep $1 > /dev/null 2>&1)  && ! $(cat $mySVCDIR/*lan | grep $2 > /dev/null 2>&1)  
 #then 
 #echo "$1    IN A      $2" >> $mySVCDIR/*lan
 #echo "$myCIDR    IN PTR      $1.$myDOMAIN" >> $mySVCDIR/*db
 #systemctl reload $mySVCNAME
 #echo "Host $1 with IP $2 added to Bind"
-#elif $(cat $mySVCDIR/*lan | grep $1 >> /dev/null)
+#elif $(cat $mySVCDIR/*lan | grep $1 > /dev/null 2>&1)
 #then 
 #echo "Host already exists"
 #else echo "IP is taken"
@@ -540,7 +541,7 @@ cat >> ldapuser.sh << "EOF"
 #echo -e "$(slapcat -s uid=$givenName.$sn,ou=People,$myDN)\n"
 #echo ""
 #
-#if kadmin.local listprincs | grep  ${givenName}.${sn} >> /dev/null
+#if kadmin.local listprincs | grep  ${givenName}.${sn} > /dev/null 2>&1
 #then echo "KERBEROS PRINCIPAL "$givenName.$sn@$myREALM" ALREADY EXISTS IN THE KERBEROS DATABASE"
 #else kadmin.local ank -pw ${passwd} ${givenName}.${sn}
 #echo "ADDED KERBEROS PRINCIPAL" $givenName.$sn@$myREALM
@@ -625,7 +626,7 @@ cat >> bulkusers.sh << "EOF"
 ##echo -e "$(slapcat -s uid=$givenName.$sn,ou=People,$myDN)\n"
 #echo ""
 #
-#if kadmin.local listprincs | grep  ${givenName}.${sn} >> /dev/null
+#if kadmin.local listprincs | grep  ${givenName}.${sn} > /dev/null 2>&1
 #then echo "KERBEROS PRINCIPAL "$givenName.$sn@$myREALM" ALREADY EXISTS IN THE KERBEROS DATABASE"
 #else kadmin.local ank -pw ${passwd} ${givenName}.${sn}
 #echo "ADDED KERBEROS PRINCIPAL" $givenName.$sn@$myREALM
@@ -678,7 +679,7 @@ ldapmodify -Y EXTERNAL -H ldapi:/// -f mod_ssl.ldif
 
 sleep 3
 
-rm $myLDAPCONFDIR/ldap.conf >> /dev/null
+rm $myLDAPCONFDIR/ldap.conf > /dev/null 2>&1
 cat >> $myLDAPCONFDIR/ldap.conf << EOF
 BASE   $myDN
 URI    ldap://$myFQDN ldaps://$myFQDN ldapi:///
@@ -739,10 +740,10 @@ clear
 echo "PART 3: KERBEROS.PLEASE PRESS ANY KEY TO CONTINUE";read line
 echo "REMOVING PREVIOUS KERBEROS CONFIGURATION..."
 
-systemctl stop krb5kdc kadmin >> /dev/null
+systemctl stop krb5kdc kadmin > /dev/null 2>&1
 
 yum remove krb5-server 
-rm -rf $myKRB5DATADIR/* >> /dev/null
+rm -rf $myKRB5DATADIR/* > /dev/null 2>&1
 
 
 yum install krb5-server krb5-workstation
@@ -814,14 +815,14 @@ cat >> $myKRB5DATADIR/kdc.conf << EOF
         kdc_ports = 750,88
         max_life = 10h 0m 0s
         max_renewable_life = 7d 0h 0m 0s
-        master_key_type = des3-hmac-sha1
-        #supported_enctypes = aes256-cts:normal aes128-cts:normal
+        #master_key_type = des3-hmac-sha1
+        supported_enctypes = aes256-cts:normal aes128-cts:normal
         default_principal_flags = +preauth
     }
 
 EOF
 
-rm $myKRB5DATADIR/kadm5.acl >> /dev/null
+rm $myKRB5DATADIR/kadm5.acl > /dev/null 2>&1
 echo "*/admin@${myREALM} *" > $myKRB5DATADIR/kadm5.acl
 
 kdb5_util create -s -r ${myREALM}
@@ -831,9 +832,9 @@ echo "YOU WILL BE PROMPTED FOR KERBEROS ADMIN USER root/admin PASSWORD.PLEASE PR
 $myKADMINSVCNAME.local ank root/admin 
 $myKADMINSVCNAME.local ank root 
 $myKADMINSVCNAME.local ank -randkey host/${myFQDN} >> /dev/nul
-$myKADMINSVCNAME.local ank -randkey nfs/${myFQDN} >> /dev/null
-$myKADMINSVCNAME.local ktadd host/${myFQDN} >> /dev/null
-$myKADMINSVCNAME.local ktadd nfs/${myFQDN} >> /dev/null
+$myKADMINSVCNAME.local ank -randkey nfs/${myFQDN} > /dev/null 2>&1
+$myKADMINSVCNAME.local ktadd host/${myFQDN} > /dev/null 2>&1
+$myKADMINSVCNAME.local ktadd nfs/${myFQDN} > /dev/null 2>&1
 
 echo "PART 3: KERBEROS COMPLETED"
 echo "YOU MAY USE THE KRB5KDC AND KADMIN SERVERS TO MANAGE YOUR REALM"
@@ -871,7 +872,7 @@ export nfsDIR=${private}
 }  ####Closing nfsdir
 nfsdir
 
-mkdir -p /srv/nfs/$nfsDIR >> /dev/null && chmod -R 777 /srv/nfs >> /dev/null
+mkdir -p /srv/nfs/$nfsDIR > /dev/null 2>&1 && chmod -R 777 /srv/nfs > /dev/null 2>&1
 
 [ ! -f /etc/idmapd.conf.bak ] && cp /etc/idmapd.conf /etc/idmapd.conf.bak
 rm /etc/idmapd.conf
@@ -887,8 +888,8 @@ Domain = $myDOMAIN
 
 [Mapping]
 
-Nobody-User = nfsnobody
-Nobody-Group = nfsnobody
+Nobody-User = nobody
+Nobody-Group = nobody
 EOF
 
 sed -i '/srv/d' /etc/exports
@@ -924,7 +925,7 @@ echo "PART 5: SAMBA SERVER CONFIGURATION.............."
 echo "REMOVING PREVIOUS SAMBA CONFIGURATION..."
 [ -d /srv/samba ] && rm -rf /srv/samba
 
-if ! cat /etc/group | grep smbprivate >> /dev/null;then groupadd -g 3000 smbprivate;fi
+if ! cat /etc/group | grep smbprivate > /dev/null 2>&1;then groupadd -g 3000 smbprivate;fi
 yum remove  samba
 
 clear
@@ -1170,16 +1171,22 @@ echo "NTP TIME SERVER INSTALLATION COMPLETE.PLEASE PRESS ANY KEY TO CONTINUE";re
 }  ############Closing ntpinstall()
 #####################################
 
+
+
+
+dnsinstall
+openldapinstall
+krb5install
+nfsinstall
+sambainstall
+ntpinstall
+
+
+if systemctl is-active firewalld 
+then
 echo "OPENING PORTS TO FIREWALLD....."
-firewall-cmd --add-service={rpc-bind,nfs,nfs3,ssh,ldap,ldaps,kerberos,kadmin,kpasswd,klogin,samba,samba-client,dns,ntp} --permanent >> /dev/null
-firewall-cmd --reload >> /dev/null
+firewall-cmd --add-service={rpc-bind,nfs,nfs3,ssh,ldap,ldaps,kerberos,kadmin,kpasswd,klogin,samba,samba-client,dns,ntp} --permanent > /dev/null 2>&1
+firewall-cmd --reload > /dev/null 2>&1
 echo "PRESS ANY KEY TO CONTINUE";read key
 clear
-
-
-#dnsinstall
-openldapinstall
-#krb5install
-#nfsinstall
-#sambainstall
-#ntpinstall
+fi
