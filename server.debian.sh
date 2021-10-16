@@ -2,7 +2,7 @@
 
 
 ###WRITTEN by alamahant on 24/12/2019
-if ! ping -c 1 google.com >> /dev/null;then echo "No Internet Connectivity,EXITING!!!";exit;fi
+if ! ping -c 1 google.com > /dev/null 2>&1;then echo "No Internet Connectivity,EXITING!!!";exit;fi
 apt update && apt install net-tools sipcalc
 
 clear
@@ -47,7 +47,7 @@ cat >> /etc/hosts << EOF
 $myIP   $line
 EOF
 
-hostname -F /etc/hostname >> /dev/null
+hostname -F /etc/hostname > /dev/null 2>&1
 hostnamectl set-hostname $line
 
 } ###Closing setfqdn
@@ -67,7 +67,7 @@ myNETWORK=$(sipcalc $(ip a  | grep $(echo $myIP | awk '{ print $1 }') | awk '{ p
 myCIDR=$(ip a  | grep $(echo $myIP | awk '{ print $1 }') | awk '{ print $2 }' | awk -F/ '{ print $2 }')
 myDNS=$(ip route | grep default | awk '{ print $3 }')
 myREALM=$(echo ${myDOMAIN^^})
-
+myFULLIP=$(ip a | grep inet | grep $myIP | awk '{ print $2 }')
 c1=$(echo $myDOMAIN | awk -F. '{ print $1 }')
 c2=$(echo $myDOMAIN | awk -F. '{ print $2 }')
 c1=$(echo "${c1^}")
@@ -82,7 +82,7 @@ myKRB5DATADIR="/var/lib/krb5kdc"
 myKRB5CONFDIR="/etc/krb5kdc"
 
 ###DAEMON NOMENCLATURE
-myDNSSVCNAME="bind9"
+myDNSSVCNAME="named"
 myDNSPACKNAME="bind9"
 myKDCSVCNAME="krb5kdc"
 myKADMINSVCNAME="krb5-admin-server"
@@ -97,10 +97,10 @@ clear
 echo "PART 1: DNS BIND. PLEASE PRESS ANY KEY TO CONTINUE";read line
 cp -p /etc/resolv.conf.bak /etc/resolv.conf
 
-systemctl stop bind9 
+systemctl stop named 
 
 apt remove --purge bind9 
-rm -rf $myDNSDIR >> /dev/null
+rm -rf $myDNSDIR > /dev/null 2>&1
 apt install bind9
 clear
 cp -p $myDNSDIR/named.conf $myDNSDIR/named.conf.bak
@@ -146,26 +146,64 @@ $myPTR     IN  PTR       $myDOMAIN.
 EOF
 
 cat >> $myDNSDIR/named.conf.options << EOF
-options {
-        directory "/var/cache/bind";
 
+acl "xfer" {
+        127.0.0.0/8; $myNETWORK/$myCIDR;
+
+};
+
+
+acl "trusted" {
+        127.0.0.0/8;
+        $myNETWORK/$myCIDR;
+};
+
+
+options {
+        directory "/etc/bind";
+	bindkeys-file "/etc/bind/bind.keys";
 
         forwarders {
          $myDNS; 8.8.8.8;
          };
 
-        dnssec-enable yes;
+        //dnssec-enable yes;
         dnssec-validation no;
 
         auth-nxdomain no;    # conform to RFC1035
         listen-on-v6 { none; };
         listen-on port 53 { any; };
-        allow-query { localhost; $myNETWORK/$myCIDR; };
+        allow-query { trusted; };
+	allow-query-cache {
+                /* Use the cache for the "trusted" ACL. */
+                trusted;
+        };
+
         recursion yes;
-        allow-recursion { localhost; $myNETWORK/$myCIDR; };
-        allow-transfer { localhost; $myNETWORK/$myCIDR; };
+        allow-recursion { trusted; };
+        allow-transfer { xfer; };
 
 };
+
+logging {
+        channel default_log {
+                file "/var/log/named/named.log" versions 5 size 50M;
+                print-time yes;
+                print-severity yes;
+                print-category yes;
+        };
+
+        category default { default_log; };
+        category general { default_log; };
+        category lame-servers { null; };
+};
+
+
+include "/etc/bind/rndc.key";
+controls {
+        inet 127.0.0.1 port 953 allow { 127.0.0.1/32; ::1/128; } keys { "rndc-key"; };
+};
+
 
 EOF
 
@@ -194,18 +232,24 @@ cat >> $myDNSDIR/named.conf.local << EOF
 EOF
 
 sed -i 's/OPTIONS="-u bind"/OPTIONS="-4 -u bind"/g' /etc/default/bind9
-chown root:bind $myDNSDIR/named.conf*
 
-sed -i '/nameserver/d' /etc/resolv.conf
+
+#sed -i '/nameserver/d' /etc/resolv.conf
 sed -i '/search/d' /etc/resolv.conf
 echo "search  $myDOMAIN" >> /etc/resolv.conf
-echo "nameserver 127.0.0.1" >> /etc/resolv.conf
+#echo "nameserver 127.0.0.1" >> /etc/resolv.conf
 rndc-confgen -a
+chown -R bind. /etc/bind
+
+[ ! -d /var/log/named ] && mkdir /var/log/named
+[ ! -f /var/log/named/named.log ] && touch /var/log/named/named.log
+chown -R bind. /var/log/named
+
 rm /etc/hosts
 cat >> /etc/hosts << EOF
 127.0.0.1  localhost
 EOF
-systemctl restart bind9 && systemctl restart bind9
+systemctl enable named && systemctl restart named
 
 echo "DNS CONFIGURATION COMPLETED.PLEASE REMEMBER TO SET YOUR INTERFACES TO USE THE LOCAL SERVER 127.0.0.1 AS THE PRIMARY DNS SERVER"
 echo "PRESS ANY KEY TO CONTUNUE";read line
@@ -239,8 +283,8 @@ echo "REMOVING PREVIOUS LDAP CONFIG..."
 systemctl stop slapd
 
 apt remove --purge slapd ldap-utils 
-rm /var/lib/*mdb >> /dev/null
-rm -rf /etc/ldap >> /dev/null
+rm /var/lib/*mdb > /dev/null 2>&1
+rm -rf /etc/ldap > /dev/null 2>&1
 [ -f /etc/profile.d/ldapuser.sh ] && rm /etc/profile.d/ldapuser.sh
 clear
 apt update && apt install slapd ldap-utils
@@ -252,6 +296,7 @@ openssl genrsa -aes128 -out server.key 2048
 openssl rsa -in server.key -out server.key
 
 echo "PLEASE REMEMBER TO ENTER YOUR FQDN  ${myFQDN} WHEN PROMPTED FOR 'Common Name' PRESS ANY KEY TO CONTINUE";read line
+echo "IF YOU GET A invalid_credentials ERROR LATER ON REBOOT YOUR MACHINE AND RERUN THIS SCRIPT"
 openssl req -new -days 3650 -key server.key -out server.csr
 openssl x509 -in server.csr -out server.crt -req -signkey server.key -days 3650
 
@@ -330,13 +375,13 @@ cat >> $myDNSDIR/dns-record << "EOF"
 #myDOMAIN=$(hostname -d)
 #mySVCDIR=$myDNSDIR
 #mySVCNAME="bind9"
-#if ! $(cat $mySVCDIR/*lan | grep $1 >> /dev/null)  && ! $(cat $mySVCDIR/*lan | grep $2 >> /dev/null)  
+#if ! $(cat $mySVCDIR/*lan | grep $1 > /dev/null 2>&1)  && ! $(cat $mySVCDIR/*lan | grep $2 > /dev/null 2>&1)  
 #then 
 #echo "$1    IN A      $2" >> $mySVCDIR/*lan
 #echo "$myCIDR    IN PTR      $1.$myDOMAIN" >> $mySVCDIR/*db
 #systemctl reload $mySVCNAME
 #echo "Host $1 with IP $2 added to Bind"
-#elif $(cat $mySVCDIR/*lan | grep $1 >> /dev/null)
+#elif $(cat $mySVCDIR/*lan | grep $1 > /dev/null 2>&1)
 #then 
 #echo "Host already exists"
 #else echo "IP is taken"
@@ -419,7 +464,7 @@ cat >> ldapuser.sh << "EOF"
 #echo -e "$(slapcat -s uid=$givenName.$sn,ou=People,$myDN)\n"
 #echo ""
 #
-#if kadmin.local listprincs | grep  ${givenName}.${sn} >> /dev/null
+#if kadmin.local listprincs | grep  ${givenName}.${sn} > /dev/null 2>&1
 #then echo "KERBEROS PRINCIPAL "$givenName.$sn@$myREALM" ALREADY EXISTS IN THE KERBEROS DATABASE"
 #else kadmin.local ank -pw ${passwd} ${givenName}.${sn}
 #echo "ADDED KERBEROS PRINCIPAL" $givenName.$sn@$myREALM
@@ -503,7 +548,7 @@ cat >> bulkusers.sh << "EOF"
 ##echo -e "$(slapcat -s uid=$givenName.$sn,ou=People,$myDN)\n"
 #echo ""
 #
-#if kadmin.local listprincs | grep  ${givenName}.${sn} >> /dev/null
+#if kadmin.local listprincs | grep  ${givenName}.${sn} > /dev/null 2>&1
 #then echo "KERBEROS PRINCIPAL "$givenName.$sn@$myREALM" ALREADY EXISTS IN THE KERBEROS DATABASE"
 #else kadmin.local ank -pw ${passwd} ${givenName}.${sn}
 #echo "ADDED KERBEROS PRINCIPAL" $givenName.$sn@$myREALM
@@ -576,7 +621,7 @@ echo "PART 2: OPENLDAP SERVER COMPLETED."
 echo "YOU CAN NOW TEST THE FUNCTIONALITY OF YOUR OPENLDAP SERVER BY ISSUING:"
 echo "slapcat"
 echo "ldapsearch -x -b $myDN -H ldap://$myFQDN/"
-echo "ldapsearch -x -D cn=Manager,$myDN -b $myDN -H ldaps://$myFQDN/ -W"
+echo "ldapsearch -x -D cn=admin,$myDN -b $myDN -H ldaps://$myFQDN/ -W"
 echo "ldapsearch -x -b $myDN -H ldapi:///"
 echo "etc etc etc"
 echo "PLEASE PRESS ANY KEY TO CONTINUE";read line
@@ -595,8 +640,8 @@ echo "REMOVING PREVIOUS KERBEROS CONFIGURATION..."
 systemctl stop krb5-kdc krb5-admin-server
 
 apt remove --purge krb5-kdc krb5-admin-server
-rm -rf $myKRB5DATADIR/* >> /dev/null
-rm -rf $myKRB5CONFDIR/* >> /dev/null
+rm -rf $myKRB5DATADIR/* > /dev/null 2>&1
+rm -rf $myKRB5CONFDIR/* > /dev/null 2>&1
 rm /etc/krb5.keytab
 
 
@@ -657,7 +702,7 @@ cat >> /etc/krb5.conf << EOF
 EOF
 
 [ ! -e $myKRB5CONFDIR/kdc.conf.bak ] && mv $myKRB5CONFDIR/kdc.conf $myKRB5CONFDIR/kdc.conf.bak
-rm $myKRB5CONFDIR/kdc.conf >> /dev/null
+rm $myKRB5CONFDIR/kdc.conf > /dev/null 2>&1
 
 cat >> $myKRB5CONFDIR/kdc.conf << EOF
 [kdcdefaults]
@@ -679,7 +724,7 @@ cat >> $myKRB5CONFDIR/kdc.conf << EOF
 
 EOF
 
-rm $myKRB5CONFDIR/kadm5.acl >> /dev/null
+rm $myKRB5CONFDIR/kadm5.acl > /dev/null 2>&1
 echo "*/admin@${myREALM} *" > $myKRB5CONFDIR/kadm5.acl
 
 kdb5_util create -s -r ${myREALM}
@@ -689,9 +734,9 @@ echo "YOU WILL BE PROMPTED FOR KERBEROS ADMIN USER root/admin PASSWORD.PLEASE PR
 kadmin.local ank root/admin 
 kadmin.local ank root 
 kadmin.local ank -randkey host/${myFQDN} >> /dev/nul
-kadmin.local ank -randkey nfs/${myFQDN} >> /dev/null
-kadmin.local ktadd host/${myFQDN} >> /dev/null
-kadmin.local ktadd nfs/${myFQDN} >> /dev/null
+kadmin.local ank -randkey nfs/${myFQDN} > /dev/null 2>&1
+kadmin.local ktadd host/${myFQDN} > /dev/null 2>&1
+kadmin.local ktadd nfs/${myFQDN} > /dev/null 2>&1
 
 echo "PART 3: KERBEROS COMPLETED"
 echo "YOU MAY USE THE KRB5KDC AND KADMIN SERVERS TO MANAGE YOUR REALM"
@@ -729,7 +774,7 @@ export nfsDIR=${private}
 }  ####Closing nfsdir
 nfsdir
 
-mkdir -p /srv/nfs/$nfsDIR >> /dev/null && chmod -R 777 /srv/nfs >> /dev/null
+mkdir -p /srv/nfs/$nfsDIR > /dev/null 2>&1 && chmod -R 777 /srv/nfs > /dev/null 2>&1
 
 [ ! -f /etc/idmapd.conf.bak ] && cp /etc/idmapd.conf /etc/idmapd.conf.bak
 rm /etc/idmapd.conf
@@ -782,7 +827,7 @@ clear
 echo "PART 5: SAMBA SERVER CONFIGURATION.............."
 apt install samba
 echo "REMOVING PREVIOUS SAMBA CONFIGURATION..."
-if ! cat /etc/group | grep smbprivate >> /dev/null;then groupadd -g 3000 smbprivate;fi
+if ! cat /etc/group | grep smbprivate > /dev/null 2>&1;then groupadd -g 3000 smbprivate;fi
 
 sharedir () {
 echo 'SAMBA SERVER WILL SHARE A READ-ONLY OPEN-TO ALL DIRECTORY UNDER "/srv/samba".PLEASE CHOOSE THE DESIRED NAME FOR THIS DIRECTORY';read dir
