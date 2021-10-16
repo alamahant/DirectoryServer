@@ -180,6 +180,8 @@ then echo "sudoers:  files sss" >> /etc/nsswitch.conf
 else sed -i '/sudoers/ s/$/ sss/g' /etc/nsswitch.conf 
 fi
 
+[ ! -f /etc/pam.d/common-auth.bak ] && mv /etc/pam.d/common-auth /etc/pam.d/common-auth.bak
+rm  /etc/pam.d/common-auth 
 
 cat >> /etc/pam.d/common-auth << EOF
 auth    [success=2 default=ignore]                      pam_sss.so
@@ -187,6 +189,9 @@ auth    [success=1 default=ignore]      pam_unix.so nullok_secure try_first_pass
 auth    requisite                       pam_deny.so
 auth    required                        pam_permit.so
 EOF
+
+[ ! -f /etc/pam.d/common-account.bak ] && mv /etc/pam.d/common-account /etc/pam.d/common-account.bak
+rm  /etc/pam.d/common-account 
 
 cat >> /etc/pam.d/common-account << EOF
 account [success=1 new_authtok_reqd=done default=ignore]  pam_unix.so
@@ -196,12 +201,18 @@ session optional      pam_mkhomedir.so skel=/etc/skel umask=0077
 account [default=bad success=ok user_unknown=ignore]    pam_sss.so
 EOF
 
+[ ! -f /etc/pam.d/common-password.bak ] && mv /etc/pam.d/common-password /etc/pam.d/common-password.bak
+rm  /etc/pam.d/common-password 
+
 cat >> /etc/pam.d/common-password << EOF
 password        sufficient                      pam_sss.so
 password        [success=1 default=ignore]      pam_unix.so obscure try_first_pass sha512
 password        requisite                       pam_deny.so
 password        required                        pam_permit.so
 EOF
+
+[ ! -f /etc/pam.d/common-session.bak ] && mv /etc/pam.d/common-session /etc/pam.d/common-session.bak
+rm  /etc/pam.d/common-session
 
 cat >> /etc/pam.d/common-session << EOF
 session [default=1]   pam_permit.so
