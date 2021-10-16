@@ -57,3 +57,9 @@ It will configure the right sssd.conf, nsswitch.conf and system-auth files to en
 Finally it will create principals for host and nfs in Kerberos database and
 
 Modify sshd_config to set "GSSAPIAuthentication yes" so as to enable ssh-ing locally as a remote user from the Server's Openldap DB.
+
+  
+  
+  INITIALLY CREATED FOR GENTOO
+  But now also available for
+  Debian,Centos7,Opensuse,Archlinux,Devuan and Artix Linux.
