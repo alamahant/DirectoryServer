@@ -10,7 +10,7 @@
 [ -f /etc/krb5.keytab ] && rm /etc/krb5.keytab
 
 clear
-yum -y update && yum install sssd nfs-utils openldap-clients krb5-workstation pam_krb5 policycoreutils policycoreutils-python ###checkmodule? 
+yum -y update && yum install authconfig sssd nfs-utils openldap-clients krb5-workstation pam_krb5 policycoreutils policycoreutils-python ###checkmodule? 
 clear
 systemctl enable sshd && systemctl restart sshd
 
@@ -79,7 +79,7 @@ EOF
 scp  root@$server:/etc/krb5.conf /etc/krb5.conf
 [ ! -f /etc/openldap/ldap.conf.bak ] && mv /etc/openldap/ldap.conf /etc/openldap/ldap.conf.bak
 scp  root@$server:/etc/openldap/ldap.conf /etc/openldap/
-
+sed -i 's/TLS_CACERT \/etc\/ssl\/certs\/ca-certificates.crt/TLS_CACERT \/etc\/ssl\/certs\/ca-bundle.crt/g' /etc/openldap/ldap.conf
 getdn () {
 end=$(echo $myDOMAIN | awk -F. '{ print NF; end}')
 for i in {1,$end}
@@ -100,14 +100,14 @@ myREALM=$(echo ${myDOMAIN^^})
 authconfig --enableldap --ldapserver=$serverFQDN --ldapbasedn=$myDN  --enableldapstarttls --enablekrb5 --krb5kdc=$serverFQDN --krb5adminserver=$serverFQDN --krb5realm=$myREALM --enablemkhomedir --update
 
 
-sed -i '/ldap_tls_cacertdir/a ldap_tls_reqcert = allow' /etc/sssd/sssd.conf
-
-[ ! -f /etc/sssd/sssd.conf.bak ] && mcp -p  /etc/sssd/sssd.conf /etc/sssd/sssd.conf.bak
 
 
-#chmod 600 /etc/sssd/sssd.conf
+[ ! -f /etc/sssd/sssd.conf.bak ] && cp -p  /etc/sssd/sssd.conf /etc/sssd/sssd.conf.bak
+sed -i '/ldap_tls_cacertdir = "\/etc\/openldap\/cacertsa"/a ldap_tls_reqcert = "allow"' /etc/sssd/sssd.conf
+
+chmod 600 /etc/sssd/sssd.conf
 cp /etc/pki/tls/certs/ca-bundle.crt /etc/openldap/cacerts/
-chown ldap. /etc/openldap/cacerts/*
+#chown ldap. /etc/openldap/cacerts/*
 
 sed -i '/GSSAPIAuthentication yes/d' /etc/ssh/sshd_config
 echo "GSSAPIAuthentication yes" >> /etc/ssh/sshd_config
