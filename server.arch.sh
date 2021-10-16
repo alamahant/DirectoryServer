@@ -1,4 +1,3 @@
-
 #!/bin/bash
 ##########  WRITTEN by alamahant on 9 January 2020 #############
 
@@ -41,7 +40,7 @@ cat >> /etc/hosts << EOF
 $myIP   $line
 EOF
 
-hostname -F /etc/hostname >> /dev/null
+hostname -F /etc/hostname > /dev/null 2>&1
 hostnamectl set-hostname $line
 export myFQDN=$line
 } ###Closing setfqdn
@@ -85,7 +84,7 @@ myKADMINSVCNAME="krb5-kadmind"
 dnsinstall () {
 clear
 echo "PART 1: DNS BIND. PLEASE PRESS ANY KEY TO CONTINUE";read line
-pidof /sbin/init >> /dev/null && systemctl stop $myDNSSVCNAME
+systemctl stop $myDNSSVCNAME
 echo "REMOVING BIND AND PURGING ALL PREVIEWS CONFIGURATION..."
 [ -d $myDNSDIR ] && rm  $myDNSDIR/*lan  
 [ -d $myDNSDIR ] && rm  $myDNSDIR/*db 
@@ -95,6 +94,7 @@ pacman -S bind
 clear
 [ ! -f /etc/named.conf.bak ] && mv /etc/named.conf /etc/named.conf.bak
 [ -f /etc/named.conf ] && rm /etc/named.conf 
+chown named. /etc/rndc.key
 cat >> $myDNSDIR/$myDOMAIN.lan << EOF
 \$TTL 86400
 @   IN  SOA    $myFQDN. root.$myDOMAIN. (
@@ -182,7 +182,7 @@ options {
 
 	forwarders { $myDNS; };
 
-	dnssec-enable yes;
+	
 	dnssec-validation no;
 
 
@@ -238,9 +238,9 @@ EOF
 
 sed -i 's/ExecStart=\/usr\/bin\/named -f -u named/ExecStart=\/usr\/bin\/named -f -4 -u named/g' /lib/systemd/system/named.service
 systemctl daemon-reload
-chown root:named /etc/named.conf
-chown root:named $myDNSDIR/*lan
-chown root:named $myDNSDIR/*db
+/usr/bin/chown root:named /etc/named.conf
+/usr/bin/chown root:named $myDNSDIR/*lan
+/usr/bin/chown root:named $myDNSDIR/*db
 rm /etc/hosts
 cat >> /etc/hosts << EOF
 127.0.0.1  localhost
@@ -254,7 +254,38 @@ systemctl enable --now $myDNSSVCNAME && systemctl restart $myDNSSVCNAME
 sed -i '/nameserver/d' /etc/resolv.conf
 sed -i '/search/d' /etc/resolv.conf
 echo "search  $myDOMAIN" >> /etc/resolv.conf
-echo "nameserver 127.0.0.1" >> /etc/resolv.conf
+#echo "nameserver 127.0.0.1" >> /etc/resolv.conf
+
+[ -f $myDNSDIR/dns-record ] && rm $myDNSDIR/dns-record
+cat >> $myDNSDIR/dns-record << "EOF"
+#!/bin/bash
+###Written by alamahant on 24/12/19.This simple script will add A and PTR records to BIND
+###Use the script thus "sudo bash dns-record <machine-name>  <IP>".
+#[ -z $1 ] || [ -z $2 ] && echo "USAGE dns-record <HOST-NAME> <IP-ADDRESS>" && exit
+#myCIDR=$(echo $2 | awk -F. '{ print $4 }')
+#myDOMAIN=$(hostname -d)
+#mySVCDIR="/var/bind"
+#mySVCNAME="named"
+#if ! $(cat $mySVCDIR/*lan | grep $1 > /dev/null 2>&1)  && ! $(cat $mySVCDIR/*lan | grep $2 > /dev/null 2>&1)  
+#then 
+#echo "$1    IN A      $2" >> $mySVCDIR/*lan
+#echo "$myCIDR    IN PTR      $1.$myDOMAIN" >> $mySVCDIR/*db
+#pidof /lib/systemd/systemd > /dev/null 2>&1 && systemctl reload $mySVCNAME
+#pidof /sbin/init > /dev/null 2>&1 && service $mySVCNAME reload
+#echo "Host $1 with IP $2 added to Bind"
+#elif $(cat $mySVCDIR/*lan | grep $1 > /dev/null 2>&1)
+#then 
+#echo "Host already exists"
+#else echo "IP is taken"
+#fi
+EOF
+sed -i 's/^#//g' $myDNSDIR/dns-record
+chmod +x $myDNSDIR/dns-record
+#########################################################
+
+####################################################
+
+
 clear
 echo "DNS CONFIGURATION COMPLETED.PLEASE REMEMBER TO SET YOUR INTERFACES TO USE THE LOCAL SERVER 127.0.0.1 AS THE PRIMARY DNS SERVER"
 echo "PRESS ANY KEY TO CONTUNUE";read line
@@ -265,13 +296,13 @@ openldapinstall () {
 clear
 echo "PART 2: OPENLDAP SERVER.PLEASE PRESS ANY KEY TO CONTINUE";read line
 clear
-pidof /sbin/init >> /dev/null && systemctl stop slapd >> /dev/null
+systemctl stop slapd > /dev/null 2>&1
 echo "REMOVING PREVIOUS LDAP CONFIG..." 
-rm -rf $myLDAPDATADIR/*mdb >> /dev/null
-rm -rf $myLDAPCONFDIR/slap.conf >> /dev/null
-rm -rf $myLDAPCONFDIR/slapd.d/* >> /dev/null
-rm -rf $myLDAPCONFDIR/ssl/* >> /dev/null
-rm -rf $myLDAPCONFDIR/ldifs/* >> /dev/null
+rm -rf $myLDAPDATADIR/*mdb > /dev/null 2>&1
+rm -rf $myLDAPCONFDIR/slap.conf > /dev/null 2>&1
+rm -rf $myLDAPCONFDIR/slapd.d/* > /dev/null 2>&1
+rm -rf $myLDAPCONFDIR/ssl/* > /dev/null 2>&1
+rm -rf $myLDAPCONFDIR/ldifs/* > /dev/null 2>&1
 [ -f /etc/profile.d/ldapuser.sh ] && rm /etc/profile.d/ldapuser.sh
 
  
@@ -296,8 +327,8 @@ echo  $dn
 myDN=$(getdn)
 
 
-cp $myLDAPCONFDIR/DB_CONFIG.example $myLDAPCONFDIR/DB_CONFIG >> /dev/null && chown ldap. $myLDAPCONFDIR/DB_CONFIG
-cp $myLDAPDATADIR/DB_CONFIG.example $myLDAPDATADIR/DB_CONFIG >> /dev/null && chown ldap. $myLDAPDATADIR/DB_CONFIG
+cp $myLDAPCONFDIR/DB_CONFIG.example $myLDAPCONFDIR/DB_CONFIG > /dev/null 2>&1 && chown ldap. $myLDAPCONFDIR/DB_CONFIG
+cp $myLDAPDATADIR/DB_CONFIG.example $myLDAPDATADIR/DB_CONFIG > /dev/null 2>&1 && chown ldap. $myLDAPDATADIR/DB_CONFIG
 
 [ -f $myLDAPCONFDIR/slapd.conf ] && rm $myLDAPCONFDIR/slapd.conf 
 
@@ -346,9 +377,9 @@ chown root:ldap $myLDAPCONFDIR/slapd.conf
 systemctl enable --now slapd && systemctl restart slapd 
 chown -R ldap. $myLDAPDATADIR
 sed -i "s/ExecStart=\/usr\/bin\/slapd -u ldap -g ldap/ExecStart=\/usr\/bin\/slapd -u ldap -g ldap -h 'ldap:\/\/\/ ldaps:\/\/\/ ldapi:\/\/\/'/g" /usr/lib/systemd/system/slapd.service
-
-[ ! -d $myLDAPCONFDIR/slad.d ] && mkdir $myLDAPCONFDIR/slapd.d 
-slaptest -f $myLDAPCONFDIR/slapd.conf  -F $myLDAPCONFDIR/slapd.d/ >> /dev/null
+systemctl daemon-reload
+[ ! -d $myLDAPCONFDIR/slap.d ] && mkdir $myLDAPCONFDIR/slapd.d 
+slaptest -f $myLDAPCONFDIR/slapd.conf  -F $myLDAPCONFDIR/slapd.d/ > /dev/null 2>&1
 chown -R ldap. $myLDAPCONFDIR/slapd.d
 chown -R ldap. $myLDAPDATADIR
 systemctl restart slapd
@@ -377,7 +408,7 @@ clear
 echo "YOU WILL BE PROMPTED FOR THE OPENLDAP ADMINISTRATIVE ACCOUNT "cn=Manager,${myDN}"  PASSWORD."
 echo "PLEASE PRESS ANY KEY TO CONTINUE";read line
 myPASS=$(echo $(slappasswd))
-
+systemctl restart slapd
 cat >> chrootpw.ldif << EOF
 dn: olcDatabase={0}config,cn=config
 changetype: modify
@@ -456,7 +487,39 @@ cn: ldapusers
 EOF
 
 ldapadd -x -D "cn=Manager,${myDN}" -W -f basedomain.ldif
-sleep 3
+
+
+
+
+cat >> mod_ssl.ldif << EOF
+dn: cn=config
+changetype: modify
+add: olcTLSCACertificateFile
+olcTLSCACertificateFile: $myLDAPCONFDIR/ssl/ca-certificates.crt
+-
+replace: olcTLSCertificateFile
+olcTLSCertificateFile: $myLDAPCONFDIR/ssl/server.crt
+-
+replace: olcTLSCertificateKeyFile
+olcTLSCertificateKeyFile: $myLDAPCONFDIR/ssl/server.key
+EOF
+
+ldapmodify -Y EXTERNAL -H ldapi:/// -f mod_ssl.ldif
+sleep 2
+
+rm $myLDAPCONFDIR/ldap.conf > /dev/null 2>&1
+cat >> $myLDAPCONFDIR/ldap.conf << EOF
+BASE   $myDN
+URI    ldap://$myFQDN ldaps://$myFQDN ldapi:///
+
+#SIZELIMIT      12
+#TIMELIMIT      15
+#DEREF          never
+
+# TLS certificates (needed for GnuTLS)
+TLS_CACERT      /etc/ssl/certs/ca-certificates.crt
+TLS_REQCERT allow
+EOF
 
 cat >> addgroup.lfif << EOF
 dn: cn=,ou=Group,$myDN
@@ -488,34 +551,197 @@ memberUid:
 EOF
 
 
-cat >> mod_ssl.ldif << EOF
-dn: cn=config
-changetype: modify
-add: olcTLSCACertificateFile
-olcTLSCACertificateFile: $myLDAPCONFDIR/ssl/ca-certificates.crt
--
-replace: olcTLSCertificateFile
-olcTLSCertificateFile: $myLDAPCONFDIR/ssl/server.crt
--
-replace: olcTLSCertificateKeyFile
-olcTLSCertificateKeyFile: $myLDAPCONFDIR/ssl/server.key
+
+cat >> ldapuser.sh << "EOF"
+##!/bin/bash
+#
+################### WRITTEN BY ALAMAHANT on 09/01/2020 ###########################
+#
+#
+#if [ ! -f /etc/profile.d/ldapuser.sh ]
+#then
+#echo "#/bin/bash" > /etc/profile.d/ldapuser.sh
+#echo "export uidserial=10001" >> /etc/profile.d/ldapuser.sh
+#fi
+#clear
+#source /etc/profile.d/ldapuser.sh
+#
+#[ -f ldapuser.ldif ] && rm ldapuser.ldif
+#
+#
+#echo "ADDING USER WITH UID" $uidserial
+#
+#myFQDN=$(hostname)
+#myDOMAIN=$(echo $myFQDN | awk -F. '{ print $2"."$3 }')
+#myREALM=$(echo ${myDOMAIN^^})
+#getdn () {
+#for ((i=1; i<=$(echo $myDOMAIN | awk -F. '{ print NF; end}'); i++))
+#do
+#dc=$(echo $myDOMAIN | cut -d "." -f $i)
+#if [ $i -eq 1 ]
+#then dn="dc="$dc
+#
+#else dn=$dn,"dc="$dc
+#fi
+#done
+#echo  $dn
+#}  ###Closing getdn ()
+#
+#myDN=$(getdn)
+#
+#addldapuser () {
+#[ -f ldapuser.ldif ] && rm ldapuser.ldif
+#echo "first name";read givenName
+#echo "last name";read sn
+#echo "password";read passwd
+#echo "PEASE PRESS "y" TO CONFIRM ADDITION OF USER";read line
+#[ ! $line == "y" ] && return
+#myPASS=$(slappasswd -s $passwd)
+#
+#cat > ldapuser.ldif << EOF
+#dn: uid=$givenName.$sn,ou=People,$myDN
+#objectClass: inetOrgPerson
+#objectClass: posixAccount
+#objectClass: shadowAccount
+#cn: $givenName $sn
+#sn: $sn
+#givenName: $givenName
+#userPassword: $myPASS
+#loginShell: /bin/bash
+#uidNumber: $uidserial
+#gidNumber: 10000
+#homeDirectory: /home/$givenName.$sn
+#
+#EOF
+#
+#if ldapadd -x -D cn=Manager,$myDN -W -f ldapuser.ldif
+#then
+#let "uidserial=uidserial+1"
+#sed -i '/export/d' /etc/profile.d/ldapuser.sh
+#echo "export uidserial=${uidserial}" >> /etc/profile.d/ldapuser.sh && source /etc/profile.d/ldapuser.sh
+#echo "ADDED LDAP USER" $givenName.$sn
+#echo "HERE ARE THE DETAILS:"
+#echo -e "$(slapcat -s uid=$givenName.$sn,ou=People,$myDN)\n"
+#echo ""
+#
+#if kadmin.local listprincs | grep  ${givenName}.${sn} > /dev/null 2>&1
+#then echo "KERBEROS PRINCIPAL "$givenName.$sn@$myREALM" ALREADY EXISTS IN THE KERBEROS DATABASE"
+#else kadmin.local ank -pw ${passwd} ${givenName}.${sn}
+#echo "ADDED KERBEROS PRINCIPAL" $givenName.$sn@$myREALM
+#fi
+#
+#else echo "USER ALREADY EXISTS OR LDAP SERVER MISCONFIGURATION ERROR" && exit 
+#fi
+#
+#} ####Closing addldapuser
+#
+#addldapuser
+# 
 EOF
+sed -i 's/^#//g' ldapuser.sh
+chmod +x ldapuser.sh
+##################################################################
 
-ldapmodify -Y EXTERNAL -H ldapi:/// -f mod_ssl.ldif
-
-rm $myLDAPCONFDIR/ldap.conf >> /dev/null
-cat >> $myLDAPCONFDIR/ldap.conf << EOF
-BASE   $myDN
-URI    ldap://$myFQDN ldaps://$myFQDN ldapi:///
-
-#SIZELIMIT      12
-#TIMELIMIT      15
-#DEREF          never
-
-# TLS certificates (needed for GnuTLS)
-TLS_CACERT      /etc/ssl/certs/ca-certificates.crt
-TLS_REQCERT allow
+####################################################################
+cat >> bulkusers.sh << "EOF"
+##!/bin/bash
+#
+################### WRITTEN BY ALAMAHANT on 09/01/2020 ###########################
+#if [ ! -f /etc/profile.d/ldapuser.sh ]
+#then
+#echo "#/bin/bash" > /etc/profile.d/ldapuser.sh
+#echo "export uidserial=10001" >> /etc/profile.d/ldapuser.sh
+#fi
+#
+#
+#source /etc/profile.d/ldapuser.sh
+#
+#
+#myFQDN=$(hostname)
+#myDOMAIN=$(echo $myFQDN | awk -F. '{ print $2"."$3 }')
+#myREALM=$(echo ${myDOMAIN^^})
+#getdn () {
+#for ((i=1; i<=$(echo $myDOMAIN | awk -F. '{ print NF; end}'); i++))
+#do
+#dc=$(echo $myDOMAIN | cut -d "." -f $i)
+#if [ $i -eq 1 ]
+#then dn="dc="$dc
+#
+#else dn=$dn,"dc="$dc
+#fi
+#done
+#echo  $dn
+#}  ###Closing getdn ()
+#
+#myDN=$(getdn)
+#
+#addldapuser () {
+#echo "ADDING USER WITH UID" $uidserial
+#[ -f ldapuser.ldif ] && rm ldapuser.ldif
+##echo "PEASE PRESS "y" TO CONFIRM ADDITION OF USER";read line
+##[ ! $line == "y" ] && return
+#myPASS=$(slappasswd -s $passwd)
+#
+#cat > ldapuser.ldif << EOF
+#dn: uid=$givenName.$sn,ou=People,$myDN
+#objectClass: inetOrgPerson
+#objectClass: posixAccount
+#objectClass: shadowAccount
+#cn: $givenName $sn
+#sn: $sn
+#givenName: $givenName
+#userPassword: $myPASS
+#loginShell: /bin/bash
+#uidNumber: $uidserial
+#gidNumber: 10000
+#homeDirectory: /home/$givenName.$sn
+#
+#EOF
+#
+#if ldapadd -x -D cn=Manager,$myDN -w $adminpasswd  -f ldapuser.ldif
+#then
+#let "uidserial=uidserial+1"
+#sed -i '/export/d' /etc/profile.d/ldapuser.sh
+#echo "export uidserial=${uidserial}" >> /etc/profile.d/ldapuser.sh && source /etc/profile.d/ldapuser.sh
+#echo "ADDED LDAP USER" $givenName.$sn
+##echo "HERE ARE THE DETAILS:"
+##echo -e "$(slapcat -s uid=$givenName.$sn,ou=People,$myDN)\n"
+#echo ""
+#
+#if kadmin.local listprincs | grep  ${givenName}.${sn} > /dev/null 2>&1
+#then echo "KERBEROS PRINCIPAL "$givenName.$sn@$myREALM" ALREADY EXISTS IN THE KERBEROS DATABASE"
+#else kadmin.local ank -pw ${passwd} ${givenName}.${sn}
+#echo "ADDED KERBEROS PRINCIPAL" $givenName.$sn@$myREALM
+#echo ""
+#fi
+#
+#else echo "USER ALREADY EXISTS OR LDAP SERVER MISCONFIGURATION ERROR" && exit 
+#fi
+#
+#} ####Closing addldapuser
+#
+#
+#echo "PLEASE PROVIDE THE ABSOLUTE PATH OF THE FILE CONTAINING THE USERS TO BE ADDED TO THE OPENLDAP DATABASE"
+#echo "THE FILE SHOULD CONTAIN ONE USER PER LINE IN THE FORMAT:"
+#echo "firstname surname password"; read file
+#[ ! -f $file ] && echo "NO SUSCH FILE.EXITING......" && exit
+#echo "PLEASE PROVIDE THE PASSWORD FOR THE ADMINISTRATIVE ACCOUNT cn=Manager,$myDN"; read adminpasswd
+#
+#clear
+#while read -r line
+#do
+#givenName=$(echo $line | awk '{ print $1 }')
+#sn=$(echo $line | awk '{ print $2 }')
+#passwd=$(echo $line | awk '{ print $3 }')
+#addldapuser
+#done < $file
+# 
 EOF
+sed -i 's/^#//g' bulkusers.sh
+chmod +x bulkusers.sh
+#################################################################
+
+
 
 chown ldap. $myLDAPCONFDIR/ldap.conf
 
@@ -539,16 +765,16 @@ clear
 echo "PART 3: KERBEROS.PLEASE PRESS ANY KEY TO CONTINUE";read line
 echo "REMOVING PREVIOUS KERBEROS CONFIGURATION..."
 
-systemctl stop $myKDCSVCNAME $myKADMINSVCNAME
+systemctl stop $myKDCSVCNAME $myKADMINSVCNAME > /dev/null 2>&1
 
-rm -rf $myKRB5DIR/* >> /dev/null
+rm -rf $myKRB5DIR/* > /dev/null 2>&1
 
 pacman -S krb5
 echo "RECONFIGURING KERBEROS..."
 
 [ ! -e /etc/krb5.conf.bak ] && mv /etc/krb5.conf /etc/krb5.conf.bak
-rm /etc/krb5.conf >> /dev/null
-rm /etc/krb5.keytab >> /dev/null
+rm /etc/krb5.conf > /dev/null 2>&1
+rm /etc/krb5.keytab > /dev/null 2>&1
 
 
 cat >> /etc/krb5.conf << EOF
@@ -578,7 +804,7 @@ cat >> /etc/krb5.conf << EOF
 	$myDOMAIN = $myREALM
 
 EOF
-
+rm /var/lib/krb5kdc/kdc.conf > /dev/null 2>&1
 cat >> $myKRB5DIR/kdc.conf << EOF
 [kdcdefaults]
     kdc_ports = 750,88
@@ -602,9 +828,11 @@ EOF
 echo "*/admin@${myREALM} *" > $myKRB5DIR/kadm5.acl
 echo "YOU WILL BE PROMPTED FOR KERBEROS DB ROOT PASSWD.PLEASE PRESS ANY KEY TO CONTINUE";read line
 kdb5_util create -s -r ${myREALM}
-pidof /sbin/init >> /dev/null && systemctl enable $myKDCSVCNAME $myKADMINSVCNAME  && systemctl restart $myKDCSVCNAME $myKADMINSVCNAME
+systemctl enable --now $myKDCSVCNAME $myKADMINSVCNAME
+systemctl start $myKDCSVCNAME $myKADMINSVCNAME
+
 kadmin.local ank -randkey host/${myFQDN} >> /dev/nul
-kadmin.local ktadd host/${myFQDN} >> /dev/null
+kadmin.local ktadd host/${myFQDN} > /dev/null 2>&1
 echo "YOU WILL BE PROMPTED FOR KERBEROS ADMIN USER root/admin PASSWORD.PLEASE PRESS ANY KEY TO CONTINUE";read line
 kadmin.local ank root/admin 
 kadmin.local ank root 
@@ -618,7 +846,7 @@ nfsinstall () {
 clear
 echo "PART 4: KERBERISED NFS-SERVER.PLEASE PRESS ANY KEY TO CONTINUE";read line
 echo "REMOVING PREVIOUS NFS CONFIGURATION..."
-pidof /sbin/init >> /dev/null && systemctl stop nfs-server rpcbind 
+systemctl stop nfs-server rpcbind > /dev/null 2>&1 
 rm -rf /srv/nfs
  
 pacman -S nfs-utils
@@ -636,7 +864,7 @@ nfsdir
 ##########################
 
 sed -i '/srv/d' /etc/exports
-mkdir -p /srv/nfs/$nfsDIR >> /dev/null && chmod -R 777 /srv/nfs >> /dev/null
+mkdir -p /srv/nfs/$nfsDIR > /dev/null 2>&1 && chmod -R 777 /srv/nfs > /dev/null 2>&1
 [ ! -f /etc/idmapd.conf.bak ] && mv  /etc/idmapd.conf /etc/idmapd.conf.bak
 rm /etc/idmapd.conf
 
@@ -652,21 +880,21 @@ Domain = $myDOMAIN
 [Mapping]
 
 Nobody-User = nobody
-Nobody-Group = nogroup
+Nobody-Group = nobody
 
 EOF
 echo "/srv/nfs *(rw,sec=krb5p,fsid=0,insecure)" >> /etc/exports
 echo "/srv/nfs/$nfsDIR *(rw,sec=krb5p,nohide,insecure)" >> /etc/exports
-pidof /sbin/init >> /dev/null && systemctl enable --now rpcbind nfs-server && systemctl restart rpcbind nfs-server
-if pidof /sbin/init >> /dev/null
+systemctl enable rpcbind nfs-server && systemctl restart rpcbind nfs-server
+if pidof /sbin/init > /dev/null 2>&1
 then
 rpc.idmapd
 rpc.svcgssd
 rpc.gssd
 fi
 exportfs -avr
-kadmin.local ank -randkey nfs/${myFQDN} >> /dev/null
-kadmin.local ktadd nfs/${myFQDN} >> /dev/null
+kadmin.local ank -randkey nfs/${myFQDN} > /dev/null 2>&1
+kadmin.local ktadd nfs/${myFQDN} > /dev/null 2>&1
 clear
 echo "PART 4: KERBERISED NFS-SERVER COMPLETED"
 echo "AFTER REBOOTING YOUR MACHINE YOU CAN MOUNT /srv/nfs/$nfsDIR BY ISSUING:"
@@ -686,7 +914,7 @@ clear
 echo "PART 5: SAMBA SERVER CONFIGURATION.............."
 pacman -S samba cifs-utils
 echo "REMOVING PREVIOUS SAMBA CONFIGURATION..."
-if ! cat /etc/group | grep smbprivate >> /dev/null;then groupadd -g 3000 smbprivate;fi
+if ! cat /etc/group | grep smbprivate > /dev/null 2>&1;then groupadd -g 3000 smbprivate;fi
 
 sharedir () {
 echo 'SAMBA SERVER WILL SHARE A READ-ONLY OPEN-TO ALL DIRECTORY UNDER "/srv/samba".PLEASE CHOOSE THE DESIRED NAME FOR THIS DIRECTORY';read dir
@@ -917,7 +1145,7 @@ echo "PRESS ANY KEY TO CONTINUE";read line
 ntpinstall () {
 clear
 echo "INSTALLING NTP TIME SERVER..."
-pacman -S 
+pacman -S ntp
 systemctl enable --now ntpd && systemctl restart ntpd
 
 ntpq -p
@@ -927,6 +1155,9 @@ clear
 echo "NTP TIME SERVER INSTALLATION COMPLETE.PLEASE PRESS ANY KEY TO CONTINUE";read line
 }  ############Closing ntpinstall()
 #####################################
+
+
+##############################################
 
 
 dnsinstall 
